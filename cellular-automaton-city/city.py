@@ -59,7 +59,7 @@ class Grid():
                 obj.name = f"GridCube_{i}_{j}"
                 self.object_grid[i, j] = obj
 
-                # create material and some node
+                # materials
                 # https://blender.stackexchange.com/questions/297185/keyframing-objects-active-material-color-using-python-api <33
                 material = bpy.data.materials.new(name=f"CubeMaterial_{i}_{j}")
                 material.use_nodes = True
