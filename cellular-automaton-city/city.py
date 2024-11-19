@@ -32,7 +32,7 @@ COLORS = {
     CELLS["ACTIVE_ROAD"]["STATE"]: (0, 0, 0, 1), # black so that it can be easily spotted
 }
 
-class Grid():
+class Grid:
     def __init__(self, size):
         self.state_grid = np.zeros((size, size), dtype=int)
         self.object_grid = np.zeros_like(self.state_grid, dtype=object)
