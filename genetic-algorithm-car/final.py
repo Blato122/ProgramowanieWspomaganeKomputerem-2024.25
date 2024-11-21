@@ -2,16 +2,15 @@ import bpy
 import random
 import math
 
-# no i zeby toawry byly tylko na poleach a nie w powietrzu!
-# i has poles moze zrobic tablice 3 elementowa, bo teraz musza byc obok siebie
-# ścieżki pozmieniać
-# pliki z blendera na githuba nowe dać (folder PWK)
+# bpy.context.scene.render.engine = 'CYCLES'
+# bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'NONE'
+# bpy.context.scene.cycles.device = 'CPU'
 
 # GA hyperparameters
 population_size = 5
 generations = 5
 mutation_rate = 0.2
-scenario = 'city'
+scenario = 'cargo'
 
 def clear_scene():
     bpy.ops.object.select_all(action='SELECT')
@@ -33,7 +32,7 @@ def create_plane():
     tex_coord = nodes.new('ShaderNodeTexCoord')
     tex_image = nodes.new('ShaderNodeTexImage')
     
-    tex_image.image = bpy.data.images.load("C:\\Users\\Błażej\\Desktop\\PWK\\asphalt-texture.jpg")
+    tex_image.image = bpy.data.images.load(r"C:\wsl2\home\blato\everything\ProgramowanieWspomaganeKomputerem-2024.25\genetic-algorithm-car\asphalt-texture.jpg")
 
     principled.inputs['Metallic'].default_value = 1.0
     principled.inputs['Roughness'].default_value = 1.0
@@ -61,8 +60,8 @@ def unpack_genes(genes):
 def load_vehicle(genes):
     vehicle_type, body_width, body_height, body_length, wheel_thickness, is_red, has_spoiler, has_bullbar, \
          has_poles, has_modules = unpack_genes(genes)
-    filepath = f"C:\\Users\\Błażej\\Desktop\\PWK\\{vehicle_type}.blend"
-        
+    # filepath = f"{vehicle_type}.blend"
+    filepath = f"C:\\wsl2\\home\\blato\\everything\\ProgramowanieWspomaganeKomputerem-2024.25\\genetic-algorithm-car\\{vehicle_type}.blend"
     with bpy.data.libraries.load(filepath, link=False) as (data_from, data_to):
         data_to.objects = [name for name in data_from.objects]
     
@@ -328,4 +327,5 @@ def genetic_algorithm():
     print("Evolution complete. Best vehicle created.")
     print(f"Best score: {best_vehicle[0]}")
 
-genetic_algorithm()
+genetic_algorithm() # has poles tak, żeby nie musiały być obok siebie?
+# koniec do wt, prir, ms
