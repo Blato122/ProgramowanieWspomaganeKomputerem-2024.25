@@ -9,7 +9,7 @@ import math
 population_size = 5
 generations = 5
 mutation_rate = 0.2
-scenario = 'cargo'
+scenario = 'city'
 
 def clear_scene():
     bpy.ops.object.select_all(action='SELECT')
@@ -61,26 +61,6 @@ def unpack_genes(genes):
         genes["binary"]["has_bullbar"]
     )
 
-# def scale_component(obj, body, scale_factor_x, scale_factor_y, scale_factor_z):
-#     offset_x = obj.location.x - body.location.x
-#     offset_y = obj.location.y - body.location.y
-#     offset_z = obj.location.z - body.location.z
-#     # Apply scaled offsets from body center
-#     obj.location.x = body.location.x + (offset_x * scale_factor_x)
-#     obj.location.y = body.location.y + (offset_y * scale_factor_y)
-#     obj.location.z = body.location.z + (offset_z * scale_factor_z)
-#     return obj
-
-def scale_component(obj, initial_body_dimensions, scaled_body_dimensions):
-    diffs = ((scaled_body_dimensions[0] - initial_body_dimensions[0])/2,
-             (scaled_body_dimensions[1] - initial_body_dimensions[1])/2,
-             (scaled_body_dimensions[2] - initial_body_dimensions[2])/2)
-    # Apply scaled offsets from body center
-    obj.location.x += diffs[0]
-    obj.location.y += diffs[1]
-    obj.location.z += diffs[2]
-    return obj
-
 def load_vehicle(genes):
     vehicle_type, body_width, body_height, body_length, wheel_thickness, is_red, has_spoiler, has_bullbar = unpack_genes(genes)
     filepath = f"C:\\Users\\Błażej\\Desktop\\PWK\\{vehicle_type}.blend"
@@ -108,33 +88,17 @@ def load_vehicle(genes):
     if not (body and len(wheels)) == 4:
         return 1
     
-    # Store initial wheel offsets from body center
-    initial_body_dimensions = (
-        body.dimensions[0], # X dimension - w
-        body.dimensions[1], # Y dimension - l
-        body.dimensions[2], # Z dimension - h
-    )
+    # bad names
     scale_factor_x = body_width
     scale_factor_y = body_length
     scale_factor_z = body_height
     body.scale.x *= scale_factor_x
     body.scale.y *= scale_factor_y 
     body.scale.z *= scale_factor_z
-    scaled_body_dimensions = (
-        initial_body_dimensions[0] * scale_factor_x,
-        initial_body_dimensions[1] * scale_factor_y,
-        initial_body_dimensions[2] * scale_factor_z,
-    )
     
-    # Update wheel positions using scaled offsets
     for wheel in wheels:
-        # wheel_scale_y_initial = wheel.scale.y
-        # wheel.location.y *= wheel_thickness
-        wheel = scale_component(wheel, initial_body_dimensions, scaled_body_dimensions)
-        # Modify wheel thickness while maintaining radius
-        #wheel.scale.z *= wheel_thickness
+        wheel.scale.z *= wheel_thickness
 
-    
     if is_red:
         # Create red material and assign it to the chassis
         mat = bpy.data.materials.new(name="RedMaterial")
@@ -146,13 +110,8 @@ def load_vehicle(genes):
         mat.diffuse_color = (0, 0, 1, 1)
         body.data.materials.append(mat)
 
-    if has_spoiler:
-        spoiler = scale_component(spoiler, initial_body_dimensions, scaled_body_dimensions)
-    spoiler.hide_viewport = has_spoiler
-
-    if has_bullbar:
-        bullbar = scale_component(bullbar, initial_body_dimensions, scaled_body_dimensions)
-    bullbar.hide_viewport = has_bullbar
+    spoiler.hide_viewport = not has_spoiler
+    bullbar.hide_viewport = not has_bullbar
 
     body["genes"] = genes
     return body
@@ -170,7 +129,8 @@ def evaluate(vehicle):
     # Aerodynamics score - prefer long and low cars. "Is red" and "has spoiler" are bonuses
     aero_score = (body_length / body_width) * (body_length / body_height) * 10 + \
         is_red * 5 + \
-        has_spoiler * 5
+        has_spoiler * 5 - \
+        has_bullbar * 5
     fuel_efficiency = -(body_width * body_height * body_length) + aero_score * 0.5
     weight = body_width * body_height * body_length + wheel_thickness + \
         10 if has_spoiler else 1 + \
@@ -185,7 +145,7 @@ def evaluate(vehicle):
     elif scenario == 'cargo':
         return cargo_score - cost_penalty
     elif scenario == 'offroad':
-        return offroad_score - cost_penalty
+        return offroad_score
     elif scenario == 'city':
         return fuel_efficiency - weight - cost_penalty
 
@@ -197,10 +157,10 @@ def create_random_genes():
             "has_bullbar": random.random() < 0.5
         },
         "continuous": {
-            "body_width": random.uniform(0.8, 1.2),
-            "body_height": random.uniform(0.8, 1.2),
-            "body_length": random.uniform(0.8, 1.2),
-            "wheel_thickness": random.uniform(0.8, 1.2)
+            "body_width": random.uniform(0.5, 1.5),
+            "body_height": random.uniform(0.5, 1.5),
+            "body_length": random.uniform(0.5, 1.5),
+            "wheel_thickness": random.uniform(0.5, 1.5)
         },
         "vehicle_type": random.choice(["GA-pickup", "GA-truck"]),
     }
@@ -211,8 +171,8 @@ def mutate(genes):
     if random.random() < mutation_rate:
         mutated_genes["vehicle_type"] = random.choice(["GA-pickup", "GA-truck"])
     for continuous_gene in mutated_genes["continuous"]:
-        mutated_genes["continuous"][continuous_gene] += random.uniform(-0.1, 0.1)
-        mutated_genes["continuous"][continuous_gene] = max(0.5, min(1.5, mutated_genes["continuous"][continuous_gene]))
+        mutated_genes["continuous"][continuous_gene] += random.uniform(-0.15, 0.15)
+        mutated_genes["continuous"][continuous_gene] = max(0.2, min(1.8, mutated_genes["continuous"][continuous_gene]))
     for binary_gene in mutated_genes["binary"]:
         if random.random() < mutation_rate:
             mutated_genes["binary"][binary_gene] = not mutated_genes["binary"][binary_gene]
