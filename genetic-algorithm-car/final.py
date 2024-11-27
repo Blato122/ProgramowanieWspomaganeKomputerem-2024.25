@@ -2,15 +2,12 @@ import bpy
 import random
 import math
 
-# bpy.context.scene.render.engine = 'CYCLES'
-# bpy.context.preferences.addons['cycles'].preferences.compute_device_type = 'NONE'
-# bpy.context.scene.cycles.device = 'CPU'
-
 # GA hyperparameters
-population_size = 5
-generations = 5
+population_size = 100
+generations = 10
 mutation_rate = 0.2
-scenario = 'cargo'
+tournament_size = 3
+scenario = 'race'
 
 def clear_scene():
     bpy.ops.object.select_all(action='SELECT')
@@ -57,7 +54,7 @@ def unpack_genes(genes):
         genes["roof_rack"]["has_modules"]
     )
 
-def load_vehicle(genes):
+def load_vehicle(genes, offset=0):
     vehicle_type, body_width, body_height, body_length, wheel_thickness, is_red, has_spoiler, has_bullbar, \
          has_poles, has_modules = unpack_genes(genes)
     # filepath = f"{vehicle_type}.blend"
@@ -111,6 +108,7 @@ def load_vehicle(genes):
     body.scale.x *= body_width
     body.scale.y *= body_length 
     body.scale.z *= body_height
+    body.location.x += offset
     
     for wheel in wheels:
         wheel.scale.z *= wheel_thickness
@@ -144,17 +142,9 @@ def load_vehicle(genes):
         elif has_module == "big-cargo-box":
             big_cargo_boxes[i].hide_viewport = False
 
-    body["genes"] = str(genes) # str, eval może
-    return body
-
-def evaluate(vehicle):
-    if not vehicle:
+def evaluate(genes):
+    if not genes:
         return 1
-    
-    str_genes = vehicle.get("genes", None)
-    if not str_genes:
-        return 2
-    genes = eval(str_genes)
 
     vehicle_type, body_width, body_height, body_length, wheel_thickness, is_red, has_spoiler, has_bullbar, \
          has_poles, has_modules = unpack_genes(genes)
@@ -210,7 +200,7 @@ def evaluate(vehicle):
 def create_random_genes():
     has_poles = random.randint(0, 3)
     has_modules = [
-        random.choice(["solar-panel", "cargo-box", "big-cargo-box"])
+        random.choice(["solar-panel", "cargo-box", "big-cargo-box", None])
         for _ in range(has_poles)
     ]
     has_modules.extend([None] * (3 - has_poles))
@@ -255,6 +245,10 @@ def mutate(genes):
                                                  else module 
                                                  for module in mutated_genes["roof_rack"]["has_modules"][:mutated_genes["roof_rack"]["has_poles"]]
                                                  ] # po else chyba za malo
+    # >>> A
+    # [1, 2, 3]
+    # >>> A[:4]
+    # [1, 2, 3]
     while len(mutated_genes["roof_rack"]["has_modules"]) < 3:
         mutated_genes["roof_rack"]["has_modules"].append(None) #?
     
@@ -262,7 +256,7 @@ def mutate(genes):
 
 def crossover(genes1, genes2):
     genes = { "binary": {}, "continuous": {}, "vehicle_type": 0, "roof_rack": { "has_poles": 0, "has_modules": [] } }
-    for binary_gene in genes1["binary"]: # po co to rozbijać, skoto potem to samo robię dla binary, cont i vehicle_type
+    for binary_gene in genes1["binary"]:
         genes["binary"][binary_gene] = random.choice([genes1["binary"][binary_gene], genes2["binary"][binary_gene]])
     for continuous_gene in genes1["continuous"]:
         genes["continuous"][continuous_gene] = random.choice([genes1["continuous"][continuous_gene], genes2["continuous"][continuous_gene]])
@@ -291,27 +285,32 @@ def crossover(genes1, genes2):
 
     return genes
 
+def tournament_selection(population, tournament_size, n_parents):
+    selected_parents = []
+    for n in range(n_parents):
+        tournament = random.sample(population, tournament_size)
+        winner = max(tournament, key=lambda x: x[0])
+        selected_parents.append(winner)
+    return selected_parents
+
 def genetic_algorithm():
     population = [create_random_genes() for _ in range(population_size)]
+    load_vehicle(population[0], -5) # reference to see the progress
     best_vehicle = None
 
     for generation in range(generations):
-        fitness_scores = []
+        vehicles = []
         for genes in population:
-            clear_scene()
-            create_plane()
-            vehicle = load_vehicle(genes)
-            score = evaluate(vehicle)
-            fitness_scores.append((score, genes))
+            score = evaluate(genes)
+            vehicles.append((score, genes))
 
-        fitness_scores.sort(reverse=True, key=lambda x: x[0])
-        best_genes = fitness_scores[0][1]
-        best_score = fitness_scores[0][0]
+        vehicles.sort(reverse=True, key=lambda x: x[0])
+        best_score, best_genes = vehicles[0][0], vehicles[0][1]
         if best_vehicle is None or best_score > best_vehicle[0]:
             best_vehicle = (best_score, best_genes)
-        print(f"Generation {generation + 1}: best score = {fitness_scores[0][0]}")
+        print(f"Generation {generation + 1}: best score = {best_score}")
 
-        parents = fitness_scores[:population_size // 2]
+        parents = tournament_selection(vehicles, tournament_size, population_size)
         new_population = []
         for _ in range(population_size):
             parent1, parent2 = random.sample(parents, 2)
@@ -321,11 +320,9 @@ def genetic_algorithm():
             new_population.append(child_genes)
         population = new_population
 
-    clear_scene()
-    create_plane()
-    load_vehicle(best_vehicle[1])
-    print("Evolution complete. Best vehicle created.")
-    print(f"Best score: {best_vehicle[0]}")
+    load_vehicle(best_vehicle[1], 5)
+    print(f"Evolution complete - best score: {best_vehicle[0]}")
 
+clear_scene()
+create_plane()
 genetic_algorithm() # has poles tak, żeby nie musiały być obok siebie?
-# koniec do wt, prir, ms
