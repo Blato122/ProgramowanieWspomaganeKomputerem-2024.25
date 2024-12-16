@@ -7,6 +7,10 @@ population_size = 100
 generations = 10
 mutation_rate = 0.2
 tournament_size = 3
+
+view_vehicle_duration = 48
+total_frames = generations * view_vehicle_duration
+
 scenario = 'race'
 
 def clear_scene():
@@ -54,7 +58,7 @@ def unpack_genes(genes):
         genes["roof_rack"]["has_modules"]
     )
 
-def load_vehicle(genes, offset=0):
+def load_vehicle(genes, frame, offset=0):
     vehicle_type, body_width, body_height, body_length, wheel_thickness, is_red, has_spoiler, has_bullbar, \
          has_poles, has_modules = unpack_genes(genes)
     # filepath = f"{vehicle_type}.blend"
@@ -62,6 +66,11 @@ def load_vehicle(genes, offset=0):
     with bpy.data.libraries.load(filepath, link=False) as (data_from, data_to):
         data_to.objects = [name for name in data_from.objects]
     
+    # new!
+    collection_name = f"Vehicle_{frame // view_vehicle_duration}"
+    vehicle_collection = bpy.data.collections.new(collection_name)
+    bpy.context.scene.collection.children.link(vehicle_collection)
+
     # main parts:
     body = None
     wheels = []
@@ -81,7 +90,8 @@ def load_vehicle(genes, offset=0):
     
     for obj in data_to.objects:
         if obj is not None:
-            bpy.context.scene.collection.objects.link(obj)
+            # bpy.context.scene.collection.objects.link(obj)
+            vehicle_collection.objects.link(obj)
             if 'body' in obj.name.lower():
                 body = obj
             elif 'wheel' in obj.name.lower():
@@ -142,6 +152,21 @@ def load_vehicle(genes, offset=0):
         elif has_module == "big-cargo-box":
             big_cargo_boxes[i].hide_viewport = False
 
+    # może zamiast generować tyle tych aut, to zmieniać jedno?
+    # i w ogóle usuwać te śmieci, które potem wiszą w programie po generacji
+    start_frame = frame
+    end_frame = frame + view_vehicle_duration  # 2 seconds at 24 fps
+
+    for obj in vehicle_collection.objects:
+        # obj.hide_viewport = False
+        obj.keyframe_insert(data_path="hide_viewport", frame=start_frame)
+        
+        obj.hide_viewport = True
+        obj.keyframe_insert(data_path="hide_viewport", frame=end_frame)
+
+        if frame != 0:
+            obj.keyframe_insert(data_path="hide_viewport", frame=0)
+
 def evaluate(genes):
     if not genes:
         return 1
@@ -149,7 +174,7 @@ def evaluate(genes):
     vehicle_type, body_width, body_height, body_length, wheel_thickness, is_red, has_spoiler, has_bullbar, \
          has_poles, has_modules = unpack_genes(genes)
 
-    # Aerodynamics score - prefer long and low cars. "Is red" and "has spoiler" are bonuses
+    # aerodynamics score - prefer long and low cars. "Is red" and "has spoiler" are bonuses
     aero_score = (body_length / body_width) * (body_length / body_height) * 10 + \
         is_red * 5 + \
         has_spoiler * 5 - \
@@ -191,7 +216,7 @@ def evaluate(genes):
        scenario == "cargo":
         roof_score += 10
 
-    # penalize unused poles (extra weight without benefit)
+    # penalize unused poles (extra weight without benefit) no matter the car type
     unused_poles = has_modules.count(None) - (3-has_poles)
     roof_score -= unused_poles * 5
 
@@ -295,7 +320,7 @@ def tournament_selection(population, tournament_size, n_parents):
 
 def genetic_algorithm():
     population = [create_random_genes() for _ in range(population_size)]
-    load_vehicle(population[0], -5) # reference to see the progress
+    load_vehicle(population[0], 0) #, -5) # reference to see the progress
     best_vehicle = None
 
     for generation in range(generations):
@@ -310,6 +335,9 @@ def genetic_algorithm():
             best_vehicle = (best_score, best_genes)
         print(f"Generation {generation + 1}: best score = {best_score}")
 
+        if generation != 0:
+            load_vehicle(best_genes, generation*view_vehicle_duration)
+
         parents = tournament_selection(vehicles, tournament_size, population_size)
         new_population = []
         for _ in range(population_size):
@@ -320,9 +348,10 @@ def genetic_algorithm():
             new_population.append(child_genes)
         population = new_population
 
-    load_vehicle(best_vehicle[1], 5)
+    load_vehicle(best_vehicle[1], generations*view_vehicle_duration) #, 5)
     print(f"Evolution complete - best score: {best_vehicle[0]}")
 
+bpy.context.scene.frame_end = total_frames
 clear_scene()
 create_plane()
 genetic_algorithm() # has poles tak, żeby nie musiały być obok siebie?
