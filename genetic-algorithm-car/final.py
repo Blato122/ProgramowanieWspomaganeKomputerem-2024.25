@@ -152,8 +152,6 @@ def load_vehicle(genes, frame, offset=0):
         elif has_module == "big-cargo-box":
             big_cargo_boxes[i].hide_viewport = False
 
-    # może zamiast generować tyle tych aut, to zmieniać jedno?
-    # i w ogóle usuwać te śmieci, które potem wiszą w programie po generacji
     start_frame = frame
     end_frame = frame + view_vehicle_duration  # 2 seconds at 24 fps
 
@@ -266,7 +264,8 @@ def mutate(genes):
     # roof rack mutations        
     mutated_genes["roof_rack"]["has_poles"] += random.randint(-1, 1)
     mutated_genes["roof_rack"]["has_poles"] = max(0, min(3, mutated_genes["roof_rack"]["has_poles"]))
-    mutated_genes["roof_rack"]["has_modules"] = [random.choice(["solar-panel", "cargo-box", "big-cargo-box", None]) if random.random() < mutation_rate 
+    mutated_genes["roof_rack"]["has_modules"] = [random.choice(["solar-panel", "cargo-box", "big-cargo-box", None]) 
+                                                 if random.random() < mutation_rate 
                                                  else module 
                                                  for module in mutated_genes["roof_rack"]["has_modules"][:mutated_genes["roof_rack"]["has_poles"]]
                                                  ] # po else chyba za malo
@@ -312,7 +311,7 @@ def crossover(genes1, genes2):
 
 def tournament_selection(population, tournament_size, n_parents):
     selected_parents = []
-    for n in range(n_parents):
+    for _ in range(n_parents):
         tournament = random.sample(population, tournament_size)
         winner = max(tournament, key=lambda x: x[0])
         selected_parents.append(winner)
@@ -354,4 +353,4 @@ def genetic_algorithm():
 bpy.context.scene.frame_end = total_frames
 clear_scene()
 create_plane()
-genetic_algorithm() # has poles tak, żeby nie musiały być obok siebie?
+genetic_algorithm()
