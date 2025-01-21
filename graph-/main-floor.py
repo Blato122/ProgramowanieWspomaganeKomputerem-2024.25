@@ -30,6 +30,14 @@ class Lamp(Vertex):
         self.material = material
         self.shade_type = shade_type
 
+class Floor(Vertex):
+    def __init__(self, id, size=10, tiles=8, light_color=(0.8, 0.8, 0.8, 1), dark_color=(0.2, 0.2, 0.2, 1)):
+        super().__init__(id)
+        self.size = size
+        self.tiles = tiles
+        self.light_color = light_color
+        self.dark_color = dark_color
+
 class Edge:
     def __init__(self, v1, v2, offset_x=0, offset_y=0, offset_z=0, rotation=0):
         self.v1 = v1
@@ -208,26 +216,33 @@ def create_floor_materials():
     
     return light_material, dark_material
 
-def create_floor():
+def create_floor(name, size=10, tiles=8, light_color=(0.8, 0.8, 0.8, 1), dark_color=(0.2, 0.2, 0.2, 1)):
     # Create plane
-    bpy.ops.mesh.primitive_plane_add(size=10)
+    bpy.ops.mesh.primitive_plane_add(size=size)
     floor = bpy.context.active_object
-    floor.name = "floor"
+    floor.name = name
     
-    # Subdivide into 8x8 grid
+    # Subdivide into tiles x tiles grid
     bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.mesh.subdivide(number_cuts=7)
+    bpy.ops.mesh.subdivide(number_cuts=tiles-1)
     bpy.ops.object.mode_set(mode='OBJECT')
     
     # Create materials
-    light_material, dark_material = create_floor_materials()
+    light_material = bpy.data.materials.new(name=f"{name}_light")
+    light_material.use_nodes = True
+    light_material.node_tree.nodes["Principled BSDF"].inputs[0].default_value = light_color
+    
+    dark_material = bpy.data.materials.new(name=f"{name}_dark")
+    dark_material.use_nodes = True
+    dark_material.node_tree.nodes["Principled BSDF"].inputs[0].default_value = dark_color
+    
     floor.data.materials.append(light_material)
     floor.data.materials.append(dark_material)
     
     # Apply checkerboard pattern
     for i, face in enumerate(floor.data.polygons):
-        row = i // 8
-        col = i % 8
+        row = i // tiles
+        col = i % tiles
         face.material_index = (row + col) % 2
     
     return floor
@@ -245,6 +260,8 @@ class Scene(Graph):
                 obj = create_table(vertex.id)
             elif isinstance(vertex, Lamp):
                 obj = create_lamp(vertex.id)
+            elif isinstance(vertex, Floor):
+                obj = create_floor(vertex.id)
             
             self.positions[vertex] = {"x": 0, "y": 0, "z": 0}
             
@@ -264,16 +281,18 @@ class Scene(Graph):
             obj2.rotation_euler[2] = math.radians(pos2["rotation"])
 
 scene = Scene()
+floor0 = Floor("floor0")
 table0 = Table("table0") 
-lamp0 = Lamp("lamp0")
-lamp1 = Lamp("lamp1")
+lamps = [Lamp(f"lamp{i}") for i in range(4)]
 chairs = [Chair(f"chair{i}") for i in range(4)]
-scene.add_e(Edge(table0, chairs[0], offset_x=-3.5, rotation=270))
-scene.add_e(Edge(table0, chairs[1], offset_x=3.5, rotation=90))
-scene.add_e(Edge(table0, chairs[2], offset_y=-3.5, rotation=0))
-scene.add_e(Edge(table0, chairs[3], offset_y=3.5, rotation=180))
-scene.add_e(Edge(table0, lamp0, offset_z=1.2, offset_x=-1))
-scene.add_e(Edge(lamp0, lamp1, offset_x=2))
+
+scene.add_e(Edge(floor0, table0, offset_z=3))
+scene.add_e(Edge(table0, chairs[0], offset_x=-3.5, rotation=270, offset_z=-1))
+scene.add_e(Edge(table0, chairs[1], offset_x=3.5, rotation=90, offset_z=-1))
+scene.add_e(Edge(table0, chairs[2], offset_y=-3.5, rotation=0, offset_z=-1))
+scene.add_e(Edge(table0, chairs[3], offset_y=3.5, rotation=180, offset_z=-1))
+scene.add_e(Edge(table0, lamps[0], offset_z=0.2, offset_x=-1))
+scene.add_e(Edge(lamps[0], lamps[1], offset_x=2))
 scene.render()
 
 # czy te klasy są w ogóle potzrbne?
