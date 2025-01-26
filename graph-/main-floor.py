@@ -34,19 +34,19 @@ class Chair(Vertex):
         back.location = (0, -1, 1)
 
         if self.back_type == "open":
-            # Create left hole
+            # left hole
             bpy.ops.mesh.primitive_cube_add()
             hole_left = bpy.context.active_object
             hole_left.scale = (0.2, 0.2, 0.6)
             hole_left.location = (-0.35, -1, 1)
 
-            # Create right hole
+            # right hole
             bpy.ops.mesh.primitive_cube_add()
             hole_right = bpy.context.active_object
             hole_right.scale = (0.2, 0.2, 0.6)
             hole_right.location = (0.35, -1, 1)
 
-            # Boolean differences
+            # boolean differences
             for hole in [hole_left, hole_right]:
                 bool_mod = back.modifiers.new(name="hole", type='BOOLEAN')
                 bool_mod.object = hole
@@ -220,17 +220,14 @@ def create_wood_material(name, color):
     material.use_nodes = True
     nodes = material.node_tree.nodes
     
-    # Clear default nodes
     nodes.clear()
     
-    # Create node setup for wood material
     diffuse = nodes.new('ShaderNodeBsdfDiffuse')
     output = nodes.new('ShaderNodeOutputMaterial')
     
-    # Set wood color
+    # wood color
     diffuse.inputs[0].default_value = color
     
-    # Link nodes
     material.node_tree.links.new(diffuse.outputs[0], output.inputs[0])
     
     return material
@@ -242,14 +239,14 @@ def create_lamp_material(name, is_emissive=False):
     nodes.clear()
     
     if is_emissive:
-        # Emission material for lampshade
+        # emission material for lampshade
         emission = nodes.new('ShaderNodeEmission')
-        emission.inputs[0].default_value = (1, 0.9, 0.7, 1)  # Warm light
-        emission.inputs[1].default_value = 2.0  # Strength
+        emission.inputs[0].default_value = (1, 0.9, 0.7, 1)  # warm light
+        emission.inputs[1].default_value = 2.0  # strength
         output = nodes.new('ShaderNodeOutputMaterial')
         material.node_tree.links.new(emission.outputs[0], output.inputs[0])
     else:
-        # Metallic material for base
+        # metallic material for base
         principled = nodes.new('ShaderNodeBsdfPrincipled')
         principled.inputs['Metallic'].default_value = 0.9
         principled.inputs['Base Color'].default_value = (0.8, 0.8, 0.8, 1)
