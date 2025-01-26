@@ -9,12 +9,75 @@ class Vertex:
     def __init__(self, id):
         self.id = id
 
+    def create(self):
+        raise NotImplementedError("Subclasses must implement create()")
+
 class Chair(Vertex):
     def __init__(self, id, number_of_legs=4, material="wood", back_type="regular"):
         super().__init__(id)
         self.number_of_legs = number_of_legs
         self.material = material
         self.back_type = back_type
+
+    def create(self):
+        # seat
+        bpy.ops.mesh.primitive_cube_add()
+        seat = bpy.context.active_object
+        seat.name = self.id
+        seat.scale = (1, 1, 0.1)
+        
+        # back
+        bpy.ops.mesh.primitive_cube_add()
+        back = bpy.context.active_object
+        back.name = f"{self.id}_back"
+        back.scale = (1, 0.1, 1)
+        back.location = (0, -1, 1)
+
+        if self.back_type == "open":
+            # Create left hole
+            bpy.ops.mesh.primitive_cube_add()
+            hole_left = bpy.context.active_object
+            hole_left.scale = (0.2, 0.2, 0.6)
+            hole_left.location = (-0.35, -1, 1)
+
+            # Create right hole
+            bpy.ops.mesh.primitive_cube_add()
+            hole_right = bpy.context.active_object
+            hole_right.scale = (0.2, 0.2, 0.6)
+            hole_right.location = (0.35, -1, 1)
+
+            # Boolean differences
+            for hole in [hole_left, hole_right]:
+                bool_mod = back.modifiers.new(name="hole", type='BOOLEAN')
+                bool_mod.object = hole
+                bool_mod.operation = 'DIFFERENCE'
+                bpy.context.view_layer.objects.active = back
+                bpy.ops.object.modifier_apply(modifier="hole")
+                bpy.data.objects.remove(hole, do_unlink=True)
+        
+        # legs
+        legs = []
+        positions = [(0.8, 0.8, 0), (-0.8, 0.8, 0), (0.8, -0.8, 0), (-0.8, -0.8, 0)]
+        for i, pos in enumerate(positions):
+            bpy.ops.mesh.primitive_cylinder_add(radius=0.1, depth=2)
+            leg = bpy.context.active_object
+            leg.name = f"{self.id}_leg_{i}"
+            leg.location = (pos[0], pos[1], -1)
+            legs.append(leg)
+        
+        # join all parts
+        for leg in legs:
+            leg.select_set(True)
+        back.select_set(True)
+        seat.select_set(True)
+        bpy.context.view_layer.objects.active = seat
+        bpy.ops.object.join()
+
+        # material
+        wood_material = create_wood_material(f"{self.id}_material", (0.6, 0.3, 0.1, 1))
+        seat.data.materials.append(wood_material)
+        
+        return seat
 
 class Table(Vertex):
     def __init__(self, id, number_of_legs=4, material="wood", table_type="regular"):
@@ -23,6 +86,37 @@ class Table(Vertex):
         self.material = material
         self.table_type = table_type
 
+    def create(self):
+        # table top
+        bpy.ops.mesh.primitive_cube_add()
+        top = bpy.context.active_object
+        top.name = self.id
+        top.scale = (2, 2, 0.1)
+        top.location = (0, 0, 1)
+        
+        # legs
+        legs = []
+        positions = [(1.8, 1.8, 0), (-1.8, 1.8, 0), (1.8, -1.8, 0), (-1.8, -1.8, 0)]
+        for i, pos in enumerate(positions):
+            bpy.ops.mesh.primitive_cylinder_add(radius=0.2, depth=3)
+            leg = bpy.context.active_object
+            leg.name = f"{self.id}_leg_{i}"
+            leg.location = (pos[0], pos[1], -0.5)
+            legs.append(leg)
+        
+        # join all parts
+        for leg in legs:
+            leg.select_set(True)
+        top.select_set(True)
+        bpy.context.view_layer.objects.active = top
+        bpy.ops.object.join()
+
+        # material
+        wood_material = create_wood_material(f"{self.id}_material", (0.4, 0.2, 0.1, 1))
+        top.data.materials.append(wood_material)
+        
+        return top
+
 class Lamp(Vertex):
     def __init__(self, id, number_of_bulbs=2, material="wood", shade_type="regular"):
         super().__init__(id)
@@ -30,13 +124,78 @@ class Lamp(Vertex):
         self.material = material
         self.shade_type = shade_type
 
+    def create(self):
+        # base
+        bpy.ops.mesh.primitive_cylinder_add(radius=0.3, depth=0.1)
+        base = bpy.context.active_object
+        base.name = self.id
+        base.location = (0, 0, 0)
+        
+        # stand
+        bpy.ops.mesh.primitive_cylinder_add(radius=0.05, depth=2)
+        stand = bpy.context.active_object
+        stand.name = f"{self.id}_stand"
+        stand.location = (0, 0, 1)
+        
+        # shade
+        bpy.ops.mesh.primitive_cone_add(radius1=0.8, radius2=0.4, depth=0.8)
+        shade = bpy.context.active_object
+        shade.name = f"{self.id}_shade"
+        shade.location = (0, 0, 2)
+        
+        # Jjin all parts
+        stand.select_set(True)
+        shade.select_set(True)
+        base.select_set(True)
+        bpy.context.view_layer.objects.active = base
+        bpy.ops.object.join()
+        
+        # materials
+        base_material = create_lamp_material(f"{self.id}_base_material")
+        shade_material = create_lamp_material(f"{self.id}_shade_material", is_emissive=True)
+        base.data.materials.append(base_material)
+        base.data.materials.append(shade_material)
+        
+        return base
+
 class Floor(Vertex):
-    def __init__(self, id, size=10, tiles=8, light_color=(0.8, 0.8, 0.8, 1), dark_color=(0.2, 0.2, 0.2, 1)):
+    def __init__(self, id, size=10, tiles=8, color1=(0.8, 0.8, 0.8, 1), color2=(0.2, 0.2, 0.2, 1)):
         super().__init__(id)
         self.size = size
         self.tiles = tiles
-        self.light_color = light_color
-        self.dark_color = dark_color
+        self.color1 = color1
+        self.color2 = color2
+
+    def create(self):
+        # plane
+        bpy.ops.mesh.primitive_plane_add(size=self.size)
+        floor = bpy.context.active_object
+        floor.name = self.id
+        
+        # tiles x tiles grid
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.subdivide(number_cuts=self.tiles-1)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        
+        #  materials
+        light_material = bpy.data.materials.new(name=f"{self.id}_light")
+        light_material.use_nodes = True
+        light_material.node_tree.nodes["Principled BSDF"].inputs[0].default_value = self.color1
+        
+        dark_material = bpy.data.materials.new(name=f"{self.id}_dark")
+        dark_material.use_nodes = True
+        dark_material.node_tree.nodes["Principled BSDF"].inputs[0].default_value = self.color2
+        
+        floor.data.materials.append(light_material)
+        floor.data.materials.append(dark_material)
+        
+        # checkerboard pattern
+        for i, face in enumerate(floor.data.polygons):
+            row = i // self.tiles
+            col = i % self.tiles
+            face.material_index = (row + col) % 2
+        
+        return floor
 
 class Edge:
     def __init__(self, v1, v2, offset_x=0, offset_y=0, offset_z=0, rotation=0):
@@ -76,75 +235,6 @@ def create_wood_material(name, color):
     
     return material
 
-def create_table(name):
-    # Create table top
-    bpy.ops.mesh.primitive_cube_add()
-    top = bpy.context.active_object
-    top.name = f"{name}"
-    top.scale = (2, 2, 0.1)
-    top.location = (0, 0, 1)
-    
-    # Create legs
-    legs = []
-    positions = [(1.8, 1.8, 0), (-1.8, 1.8, 0), (1.8, -1.8, 0), (-1.8, -1.8, 0)]
-    for i, pos in enumerate(positions):
-        bpy.ops.mesh.primitive_cylinder_add(radius=0.2, depth=3)
-        leg = bpy.context.active_object
-        leg.name = f"{name}_leg_{i}"
-        leg.location = (pos[0], pos[1], -0.5)
-        legs.append(leg)
-    
-    # Join all parts
-    for leg in legs:
-        leg.select_set(True)
-    top.select_set(True)
-    bpy.context.view_layer.objects.active = top
-    bpy.ops.object.join()
-
-    # Create and apply wood material
-    wood_material = create_wood_material(f"{name}_material", (0.4, 0.2, 0.1, 1))
-    top.data.materials.append(wood_material)
-
-    return top
-
-def create_chair(name):
-    # Create seat
-    bpy.ops.mesh.primitive_cube_add()
-    seat = bpy.context.active_object
-    seat.name = f"{name}"
-    seat.scale = (1, 1, 0.1)
-    
-    # Create backrest
-    bpy.ops.mesh.primitive_cube_add()
-    back = bpy.context.active_object
-    back.name = f"{name}_back"
-    back.scale = (1, 0.1, 1)
-    back.location = (0, -1, 1)
-    
-    # Create legs
-    legs = []
-    positions = [(0.8, 0.8, 0), (-0.8, 0.8, 0), (0.8, -0.8, 0), (-0.8, -0.8, 0)]
-    for i, pos in enumerate(positions):
-        bpy.ops.mesh.primitive_cylinder_add(radius=0.1, depth=2)
-        leg = bpy.context.active_object
-        leg.name = f"{name}_leg_{i}"
-        leg.location = (pos[0], pos[1], -1)
-        legs.append(leg)
-    
-    # Join all parts
-    for leg in legs:
-        leg.select_set(True)
-    back.select_set(True)
-    seat.select_set(True)
-    bpy.context.view_layer.objects.active = seat
-    bpy.ops.object.join()
-
-    # Create and apply wood material (lighter color for chairs)
-    wood_material = create_wood_material(f"{name}_material", (0.6, 0.3, 0.1, 1))
-    seat.data.materials.append(wood_material)
-    
-    return seat
-
 def create_lamp_material(name, is_emissive=False):
     material = bpy.data.materials.new(name=name)
     material.use_nodes = True
@@ -168,84 +258,18 @@ def create_lamp_material(name, is_emissive=False):
     
     return material
 
-def create_lamp(name):
-    # Create base
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.3, depth=0.1)
-    base = bpy.context.active_object
-    base.name = f"{name}"
-    base.location = (0, 0, 0)
-    
-    # Create stand
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.05, depth=2)
-    stand = bpy.context.active_object
-    stand.name = f"{name}_stand"
-    stand.location = (0, 0, 1)
-    
-    # Create shade
-    bpy.ops.mesh.primitive_cone_add(radius1=0.8, radius2=0.4, depth=0.8)
-    shade = bpy.context.active_object
-    shade.name = f"{name}_shade"
-    shade.location = (0, 0, 2)
-    
-    # Join all parts
-    stand.select_set(True)
-    shade.select_set(True)
-    base.select_set(True)
-    bpy.context.view_layer.objects.active = base
-    bpy.ops.object.join()
-    
-    # Apply materials
-    base_material = create_lamp_material(f"{name}_base_material")
-    shade_material = create_lamp_material(f"{name}_shade_material", is_emissive=True)
-    
-    base.data.materials.append(base_material)
-    base.data.materials.append(shade_material)
-    
-    return base
-
 def create_floor_materials():
-    # Light tile
+    # light tile
     light_material = bpy.data.materials.new(name="floor_light")
     light_material.use_nodes = True
     light_material.node_tree.nodes["Principled BSDF"].inputs[0].default_value = (0.8, 0.8, 0.8, 1)
     
-    # Dark tile
+    # dark tile
     dark_material = bpy.data.materials.new(name="floor_dark")
     dark_material.use_nodes = True
     dark_material.node_tree.nodes["Principled BSDF"].inputs[0].default_value = (0.2, 0.2, 0.2, 1)
     
     return light_material, dark_material
-
-def create_floor(name, size=10, tiles=8, light_color=(0.8, 0.8, 0.8, 1), dark_color=(0.2, 0.2, 0.2, 1)):
-    # Create plane
-    bpy.ops.mesh.primitive_plane_add(size=size)
-    floor = bpy.context.active_object
-    floor.name = name
-    
-    # Subdivide into tiles x tiles grid
-    bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.mesh.subdivide(number_cuts=tiles-1)
-    bpy.ops.object.mode_set(mode='OBJECT')
-    
-    # Create materials
-    light_material = bpy.data.materials.new(name=f"{name}_light")
-    light_material.use_nodes = True
-    light_material.node_tree.nodes["Principled BSDF"].inputs[0].default_value = light_color
-    
-    dark_material = bpy.data.materials.new(name=f"{name}_dark")
-    dark_material.use_nodes = True
-    dark_material.node_tree.nodes["Principled BSDF"].inputs[0].default_value = dark_color
-    
-    floor.data.materials.append(light_material)
-    floor.data.materials.append(dark_material)
-    
-    # Apply checkerboard pattern
-    for i, face in enumerate(floor.data.polygons):
-        row = i // tiles
-        col = i % tiles
-        face.material_index = (row + col) % 2
-    
-    return floor
 
 class Scene(Graph):
     def __init__(self):
@@ -254,15 +278,7 @@ class Scene(Graph):
 
     def render(self):
         for vertex in self.graph:
-            if isinstance(vertex, Chair):
-                obj = create_chair(vertex.id)
-            elif isinstance(vertex, Table):
-                obj = create_table(vertex.id)
-            elif isinstance(vertex, Lamp):
-                obj = create_lamp(vertex.id)
-            elif isinstance(vertex, Floor):
-                obj = create_floor(vertex.id)
-            
+            vertex.create()
             self.positions[vertex] = {"x": 0, "y": 0, "z": 0}
             
         for edge in self.edges:
@@ -284,7 +300,7 @@ scene = Scene()
 floor0 = Floor("floor0")
 table0 = Table("table0") 
 lamps = [Lamp(f"lamp{i}") for i in range(4)]
-chairs = [Chair(f"chair{i}") for i in range(4)]
+chairs = [Chair(f"chair{i}", back_type="open" if i % 2 else "regular") for i in range(4)]
 
 scene.add_e(Edge(floor0, table0, offset_z=3))
 scene.add_e(Edge(table0, chairs[0], offset_x=-3.5, rotation=270, offset_z=-1))
@@ -294,8 +310,3 @@ scene.add_e(Edge(table0, chairs[3], offset_y=3.5, rotation=180, offset_z=-1))
 scene.add_e(Edge(table0, lamps[0], offset_z=0.2, offset_x=-1))
 scene.add_e(Edge(lamps[0], lamps[1], offset_x=2))
 scene.render()
-
-# czy te klasy są w ogóle potzrbne?
-# dodać proste modele, np. krzesło x2, jedno z oparciem zwyklym, deugie z innym. material jakos dynamicznie moze zmienaic i tyle
-# potem jeszcze dodac ew szafe i koniec
-# obrót dodać, żeby obracać krzesła
